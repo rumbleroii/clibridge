@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from .conftest import FAKE_CLI
+from .conftest import fake_cli
 
 pytestmark = pytest.mark.skipif(
     subprocess.run([sys.executable, "-c", "import _clibridge_autoload"], capture_output=True).returncode != 0,
@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 def run(code, cwd=None, **env):
     full_env = {k: v for k, v in os.environ.items()
                 if k not in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLIBRIDGE_AUTOLOAD")}
-    full_env.update(CLIBRIDGE_CLAUDE_BIN=str(FAKE_CLI / "claude"), CLIBRIDGE_CODEX_BIN=str(FAKE_CLI / "codex"))
+    full_env.update(CLIBRIDGE_CLAUDE_BIN=fake_cli("claude"), CLIBRIDGE_CODEX_BIN=fake_cli("codex"))
     full_env.update(env)
     proc = subprocess.run([sys.executable, "-W", "error::RuntimeWarning", "-c", textwrap.dedent(code)],
                           capture_output=True, text=True, env=full_env, timeout=120, cwd=cwd)
