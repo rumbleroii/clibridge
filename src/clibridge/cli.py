@@ -43,6 +43,26 @@ def _logging(verbosity: int, default: int) -> None:
                         datefmt="%H:%M:%S")
 
 
+def _safe_streams() -> None:
+    """Keep redirected output from crashing on characters the console encoding lacks."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, OSError, ValueError):
+            pass
+
+
+def _mark(ok: bool) -> str:
+    """A check/cross when the output stream can show it, ASCII otherwise (Windows cp1252)."""
+    symbol = "✓" if ok else "✗"
+    encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        symbol.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return "OK" if ok else "X"
+    return symbol
+
+
 def _serve(args: argparse.Namespace) -> int:
     from .server import serve
 
@@ -88,14 +108,14 @@ def _doctor(args: argparse.Namespace) -> int:
     for backend, binary in (("claude", config.claude_bin), ("codex", config.codex_bin)):
         path = shutil.which(binary)
         if not path:
-            print(f"✗ {backend}: `{binary}` not found on PATH")
+            print(f"{_mark(False)} {backend}: `{binary}` not found on PATH")
             ok = False
             continue
         try:
             version = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
         except (OSError, subprocess.SubprocessError) as exc:
             version = f"(could not run: {exc})"
-        print(f"✓ {backend}: {path} {version}")
+        print(f"{_mark(True)} {backend}: {path} {version}")
         if args.ping:
             request = {"model": backend, "messages": [{"role": "user", "content": "Reply with the word: ok"}],
                        "reasoning_effort": "low"}
@@ -103,20 +123,21 @@ def _doctor(args: argparse.Namespace) -> int:
                 reply = None
                 for item in iter_chat(request, config):
                     reply = item
-                print(f"  ✓ test call answered: {reply.content.strip()[:60]!r}")
+                print(f"  {_mark(True)} test call answered: {reply.content.strip()[:60]!r}")
             except BridgeError as exc:
-                print(f"  ✗ test call failed: {exc}")
+                print(f"  {_mark(False)} test call failed: {exc}")
                 ok = False
     if any(type(f).__module__ == "_clibridge_autoload" for f in sys.meta_path):
-        print('✓ auto mode: on. Plain openai / litellm / anthropic / langchain code can use model="claude-code"')
+        print(f'{_mark(True)} auto mode: on. Plain openai / litellm / anthropic / langchain code can use model="claude-code"')
     else:
-        print("✗ auto mode: off (CLIBRIDGE_AUTOLOAD=0, or clibridge isn't pip-installed in this Python)")
+        print(f"{_mark(False)} auto mode: off (CLIBRIDGE_AUTOLOAD=0, or clibridge isn't pip-installed in this Python)")
     if not args.ping:
         print("Run `clibridge doctor --ping` to make a tiny test call through each CLI.")
     return 0 if ok else 1
 
 
 def main(argv: Optional[List[str]] = None) -> None:
+    _safe_streams()
     parser = argparse.ArgumentParser(
         prog="clibridge",
         description="Use your Claude Code / Codex subscriptions from any OpenAI- or Anthropic-compatible SDK.",
