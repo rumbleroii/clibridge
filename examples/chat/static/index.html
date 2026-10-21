@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>clibridge chat</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2310a37f'/%3E%3Ctext x='32' y='43' font-size='28' font-family='sans-serif' font-weight='700' fill='%230d0d0d' text-anchor='middle'%3Ecb%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand"><span class="brand-mark">cb</span> clibridge</div>
+      <button class="icon-btn close-sidebar" id="close-sidebar" title="Close sidebar" aria-label="Close sidebar">&#215;</button>
+    </div>
+    <button class="new-chat" id="new-chat"><span class="plus">+</span> New chat</button>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="sidebar-foot">
+      <button class="matrix-link" id="open-matrix">Capability matrix</button>
+      <p class="local-note"><span class="dot"></span> local claude / codex CLIs</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menu-btn" title="Menu" aria-label="Menu">&#8801;</button>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-view="chat" role="tab">Chat</button>
+        <button class="tab" data-view="matrix" role="tab">Capabilities</button>
+      </div>
+      <div class="model-wrap">
+        <label for="model" class="sr-only">Model</label>
+        <select id="model" class="model-select">
+          <option value="claude-code">claude-code</option>
+          <option value="claude-code/opus">claude-code / opus</option>
+          <option value="claude-code/sonnet">claude-code / sonnet</option>
+          <option value="claude-code/haiku">claude-code / haiku</option>
+          <option value="codex">codex</option>
+        </select>
+      </div>
+    </header>
+
+    <section class="view chat-view" id="chat-view">
+      <div class="messages" id="messages"></div>
+      <div class="composer-shell">
+        <div class="composer">
+          <textarea id="input" rows="1" placeholder="Message clibridge" autocomplete="off"></textarea>
+          <div class="composer-row">
+            <div class="composer-tools">
+              <button id="tools-toggle" class="chip active" title="Let the model call local tools">
+                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M14.7 6.3a4.5 4.5 0 0 0-5.9 5.9L3 18v3h3l5.8-5.8a4.5 4.5 0 0 0 5.9-5.9l-3.1 3.1-2.1-2.1 3.1-3.1z"/></svg>
+                Tools
+              </button>
+              <label class="effort" title="Ask for a thinking summary">
+                Thinking
+                <select id="effort">
+                  <option value="">auto</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+            </div>
+            <button id="send" class="send" title="Send" aria-label="Send">
+              <svg class="send-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21.8 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
+              <span class="stop-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+        <p class="disclaimer">Runs locally through your Claude Code / Codex login. Tool calls execute on this machine.</p>
+      </div>
+    </section>
+
+    <section class="view matrix-view" id="matrix-view" hidden>
+      <div class="matrix-head">
+        <div>
+          <h1>Capability matrix</h1>
+          <p>Real SDK calls routed through clibridge. Every test starts a CLI process.</p>
+        </div>
+        <div class="matrix-actions">
+          <span id="progress"></span>
+          <button id="runall" class="primary">Run all</button>
+        </div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+  </main>
+</div>
+<div class="scrim" id="scrim"></div>
+<script src="/static/app.js?v=2"></script>
+</body>
+</html>

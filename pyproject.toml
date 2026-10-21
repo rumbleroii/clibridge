@@ -17,6 +17,13 @@ anthropic = ["anthropic>=0.40", "httpx>=0.27"]
 langchain = ["langchain-openai>=0.3", "httpx>=0.27"]
 litellm = ["litellm>=1.60"]
 all = ["clibridge[openai,anthropic,langchain,litellm]"]
+chat = [
+    "clibridge[all]",
+    "openai-agents>=0.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "tzdata>=2024.1; platform_system == 'Windows'",
+]
 dev = ["clibridge[all]", "pytest>=8", "langgraph", "openai-agents"]
 
 [project.scripts]

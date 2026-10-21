@@ -17,6 +17,13 @@ print(reply.choices[0].message.content)
 Behind the scenes, clibridge runs the `claude` or `codex` command on your computer, so the request uses your
 subscription instead of a paid API key. Good for demos, testing and side projects.
 
+## Demo
+
+![A chat UI built on clibridge, streaming replies and a tool call](assets/chat-demo.gif)
+
+A small local chat UI on top of clibridge: streamed replies, live tool calls, and model switching.
+The app is in [`examples/chat`](examples/chat).
+
 ---
 
 ## Setup (once)
