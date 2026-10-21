@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Stand-in for `claude -p --output-format stream-json` that follows the real protocol."""
+
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import emit, log_call, opt, reject_flags, reply_text, sample, tool_reply  # noqa: E402
+
+args = sys.argv[1:]
+if "--help" in args:
+    print("Usage: claude [options]\n  --json-schema <schema>\n  --effort <level>\n  --safe-mode\n  --include-partial-messages")
+    sys.exit(0)
+
+reject_flags(args, "error: unknown option '{flag}'")
+raw = sys.stdin.read()
+images = 0
+if opt(args, "--input-format") == "stream-json":
+    content = json.loads(raw.splitlines()[0])["message"]["content"]
+    prompt = "".join(b.get("text", "") for b in content if b["type"] == "text")
+    images = sum(1 for b in content if b["type"] == "image")
+else:
+    prompt = raw
+log_call({"cli": "claude", "argv": args, "prompt": prompt, "images": images, "cwd": os.getcwd(),
+          "env_has_anthropic_key": "ANTHROPIC_API_KEY" in os.environ,
+          "thinking_disabled": os.environ.get("CLAUDE_CODE_DISABLE_THINKING") == "1"})
+
+model = opt(args, "--model") or "claude-default"
+agent = opt(args, "--tools") is None
+partial = "--include-partial-messages" in args
+session = "sess-123"
+emit({"type": "system", "subtype": "init", "session_id": session, "tools": [] if not agent else ["Bash"], "model": model})
+
+if "SLOW" in prompt:
+    time.sleep(30)
+if "FAIL" in prompt:
+    emit({"type": "result", "subtype": "success", "is_error": True, "result": "Invalid API key · Please run /login",
+          "session_id": session})
+    sys.exit(1)
+if "CRASH" in prompt:
+    sys.stderr.write("boom: something broke\n")
+    sys.exit(3)
+
+structured = None
+schema = opt(args, "--json-schema")
+if schema is not None:
+    schema = json.loads(schema)
+    if "tool_calls" in (schema.get("properties") or {}):
+        names = schema["properties"]["tool_calls"]["items"]["properties"]["name"]["enum"]
+        structured = tool_reply(prompt, names, args_as_string=False, instructions=opt(args, "--system-prompt") or "")
+    else:
+        structured = sample(schema)
+    text = json.dumps(structured)
+else:
+    text = reply_text(model, prompt)
+
+
+# Real Claude Code sends thinking as empty text unless --thinking-display summarized is passed.
+thinks = "THINK" in prompt and os.environ.get("CLAUDE_CODE_DISABLE_THINKING") != "1"
+thought = "Considering: " + prompt.strip().splitlines()[-1][:60] if thinks else ""
+shown = thought if opt(args, "--thinking-display") == "summarized" else ""
+
+
+def stream_thinking():
+    emit({"type": "stream_event", "event": {"type": "message_start", "message": {"content": []}}, "parent_tool_use_id": None})
+    emit({"type": "stream_event", "event": {"type": "content_block_start", "index": 0,
+                                             "content_block": {"type": "thinking", "thinking": "", "signature": ""}},
+          "parent_tool_use_id": None})
+    emit({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0,
+                                             "delta": {"type": "thinking_delta", "thinking": shown}},
+          "parent_tool_use_id": None})
+    emit({"type": "stream_event", "event": {"type": "content_block_stop", "index": 0}, "parent_tool_use_id": None})
+
+
+def stream_message(text):
+    emit({"type": "stream_event", "event": {"type": "message_start", "message": {"content": []}}, "parent_tool_use_id": None})
+    emit({"type": "stream_event", "event": {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+          "parent_tool_use_id": None})
+    third = max(1, len(text) // 3)
+    for i in range(0, len(text), third):
+        emit({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0,
+                                                 "delta": {"type": "text_delta", "text": text[i:i + third]}},
+              "parent_tool_use_id": None})
+    emit({"type": "stream_event", "event": {"type": "message_stop"}, "parent_tool_use_id": None})
+
+
+if agent and "AGENT" in prompt:
+    if partial:
+        stream_message("Let me look around.")
+    emit({"type": "assistant", "parent_tool_use_id": None, "message": {"content": [
+        {"type": "text", "text": "Let me look around."},
+        {"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": {"command": "ls -la"}}]}})
+    emit({"type": "user", "parent_tool_use_id": None, "message": {"content": [
+        {"type": "tool_result", "tool_use_id": "toolu_1", "content": "README.md"}]}})
+    # subagent chatter must be ignored
+    emit({"type": "stream_event", "parent_tool_use_id": "toolu_9", "event": {
+        "type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "SUBAGENT"}}})
+
+if thinks:
+    if partial:
+        stream_thinking()
+    emit({"type": "assistant", "parent_tool_use_id": None,
+          "message": {"content": [{"type": "thinking", "thinking": shown, "signature": "sig"}]}})
+if partial:
+    stream_message(text)
+emit({"type": "assistant", "parent_tool_use_id": None, "message": {"content": [{"type": "text", "text": text}]}})
+emit({"type": "result", "subtype": "success", "is_error": False, "result": text, "structured_output": structured,
+      "session_id": session, "total_cost_usd": 0.0012, "num_turns": 2 if agent else 1,
+      "usage": {"input_tokens": 10, "cache_creation_input_tokens": 5, "cache_read_input_tokens": 100, "output_tokens": 7,
+                "output_tokens_details": {"thinking_tokens": 42 if thinks else 0}}})
